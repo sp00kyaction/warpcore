@@ -239,6 +239,11 @@ export function start(): void {
   store<u32>(PALETTE + 8, 0x87CEEB); // PALETTE[2] = Celestite (Near Stars)
   store<u32>(PALETTE + 12, 0xFFFFFF); // PALETTE[3] = Moonstone (Scroller Text)
 
+  // Reset global state
+  stars = [];
+  frameCounter = 0;
+  lastBassAct = 0xFFFFFFFF;
+
   // Initialize stars
   for (let i = 0; i < STAR_COUNT; i++) {
     const star = new Star();
