@@ -79,12 +79,12 @@ const NOTE_G3: u32 = 196;
 // ---------------------------------------------------------------------------
 // Static Star Data (Manual memory allocation in free region)
 // ---------------------------------------------------------------------------
-// WASM-4 free memory starts at 0x19a0 (after framebuffer at 0xa0-0x5f9f)
-const starX: usize = 0x19a0;  // 64 * 4 = 256 bytes
-const starY: usize = 0x1aa0;  // 64 * 4 = 256 bytes
-const starZ: usize = 0x1ba0;  // 64 * 4 = 256 bytes
-const bassNotes: usize = 0x1ca0;  // 4 * 4 = 16 bytes
-const arpNotes: usize = 0x1cb0;  // 4 * 4 = 16 bytes
+// WASM-4 free memory starts at 0x5fa0 (after framebuffer ends at 0x5f9f)
+const starX: usize = 0x5fa0;  // 64 * 4 = 256 bytes
+const starY: usize = 0x60a0;  // 64 * 4 = 256 bytes
+const starZ: usize = 0x61a0;  // 64 * 4 = 256 bytes
+const bassNotes: usize = 0x62a0;  // 4 * 4 = 16 bytes
+const arpNotes: usize = 0x62b0;  // 4 * 4 = 16 bytes
 
 // Initialize audio note data
 function initAudioData(): void {
