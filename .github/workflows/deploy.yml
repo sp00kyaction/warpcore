@@ -32,7 +32,6 @@ jobs:
       # Step 3: Install dependencies (w4 CLI and AssemblyScript)
       - name: Install dependencies
         run: |
-          npm install -g w4
           npm install -g assemblyscript
           npm install
 
