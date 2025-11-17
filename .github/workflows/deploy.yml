@@ -43,9 +43,7 @@ jobs:
       # This is the key step for creating a "testable" artifact.
       # It creates a directory "public" containing "index.html".
       - name: Bundle for Web
-        run: |
-          mkdir public
-          w4 bundle cart/cart.wasm --html public/index.html
+        run: npm run bundle
 
       # Step 6: Upload the "public" directory as a GitHub Pages artifact
       - name: Upload artifact
