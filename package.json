@@ -1,21 +1,16 @@
 {
-  "name": "warpcore",
+  "name": "warpcore-p4",
   "version": "1.0.0",
-  "description": "Project Warpcore (P4) - A 3D perspective starfield for WASM-4",
+  "description": "Project Warpcore (P4) - The Gemstone Kernels",
   "scripts": {
-    "build": "asc assembly/main.ts --target release --outFile build/cart.wasm --bindings esm",
-    "build:debug": "asc assembly/main.ts --target debug --outFile build/cart.wasm --bindings esm",
-    "watch": "asc assembly/main.ts --target release --outFile build/cart.wasm --bindings esm --watch"
+    "build": "asc assembly/main.ts -b cart/cart.wasm --runtime stub --use abort=assembly/main/abort --optimize",
+    "bundle": "mkdir -p public && w4 bundle cart/cart.wasm --html public/index.html",
+    "run": "npm run build && w4 run cart/cart.wasm",
+    "watch": "w4 watch --onchange 'npm run build'"
   },
   "devDependencies": {
-    "assemblyscript": "^0.27.0"
+    "assemblyscript": "^0.27.0",
+    "w4": "^2.5.10"
   },
-  "keywords": [
-    "wasm4",
-    "assemblyscript",
-    "starfield",
-    "demo"
-  ],
-  "author": "",
-  "license": "MIT"
+  "type": "module"
 }
