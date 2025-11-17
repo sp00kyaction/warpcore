@@ -214,13 +214,6 @@ class ChordNote {
   }
 }
 
-const progression: ChordNote[] = [
-  new ChordNote(NOTE_C2, NOTE_C4), // Am equivalent
-  new ChordNote(NOTE_G1, NOTE_G3), // G
-  new ChordNote(NOTE_F2, NOTE_F4), // F
-  new ChordNote(NOTE_E2, NOTE_E4)  // E
-];
-
 // ---------------------------------------------------------------------------
 // Global State
 // ---------------------------------------------------------------------------
@@ -228,16 +221,26 @@ let stars: Star[] = [];
 let scroller: Scroller | null = null;
 let frameCounter: u32 = 0;
 let lastBassAct: u32 = 0xFFFFFFFF;
+let initialized: bool = false;
+let progression: ChordNote[] = [];
 
 // ---------------------------------------------------------------------------
 // WASM-4 Lifecycle: start()
 // ---------------------------------------------------------------------------
 export function start(): void {
+  if (initialized) return;
+
   // Set Gemstone Palette
   store<u32>(PALETTE + 0, 0x000000); // PALETTE[0] = Obsidian (Background)
   store<u32>(PALETTE + 4, 0x6C757D); // PALETTE[1] = Hematite (Far Stars)
   store<u32>(PALETTE + 8, 0x87CEEB); // PALETTE[2] = Celestite (Near Stars)
   store<u32>(PALETTE + 12, 0xFFFFFF); // PALETTE[3] = Moonstone (Scroller Text)
+
+  // Initialize audio progression
+  progression.push(new ChordNote(NOTE_C2, NOTE_C4)); // Am equivalent
+  progression.push(new ChordNote(NOTE_G1, NOTE_G3)); // G
+  progression.push(new ChordNote(NOTE_F2, NOTE_F4)); // F
+  progression.push(new ChordNote(NOTE_E2, NOTE_E4)); // E
 
   // Initialize stars
   for (let i = 0; i < STAR_COUNT; i++) {
@@ -253,6 +256,8 @@ export function start(): void {
     "   PROJECT WARPCORE (P4)   ...   A3 STACK VALIDATION   ...   ASSEMBLYSCRIPT + WASM-4   ...   64K OR BUST   ...   ",
     25.0
   );
+
+  initialized = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -262,7 +267,7 @@ export function update(): void {
   // -------------------------------------------------------------------------
   // 0. Lazy Initialization (ensure start() has been called)
   // -------------------------------------------------------------------------
-  if (scroller === null) {
+  if (!initialized) {
     start();
   }
 
