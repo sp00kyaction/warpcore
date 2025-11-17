@@ -1,0 +1,21 @@
+{
+  "name": "warpcore",
+  "version": "1.0.0",
+  "description": "Project Warpcore (P4) - A 3D perspective starfield for WASM-4",
+  "scripts": {
+    "build": "asc assembly/main.ts --target release --outFile build/cart.wasm --bindings esm",
+    "build:debug": "asc assembly/main.ts --target debug --outFile build/cart.wasm --bindings esm",
+    "watch": "asc assembly/main.ts --target release --outFile build/cart.wasm --bindings esm --watch"
+  },
+  "devDependencies": {
+    "assemblyscript": "^0.27.0"
+  },
+  "keywords": [
+    "wasm4",
+    "assemblyscript",
+    "starfield",
+    "demo"
+  ],
+  "author": "",
+  "license": "MIT"
+}
