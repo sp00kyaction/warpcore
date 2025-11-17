@@ -16,16 +16,16 @@ export const FRAMEBUFFER: usize = 0xa0;
 // WASM-4 API Imports
 // ---------------------------------------------------------------------------
 @external("env", "rect")
-export declare function rect(x: i32, y: i32, width: u32, height: u32): void;
+declare function rect(x: i32, y: i32, width: u32, height: u32): void;
 
 @external("env", "oval")
-export declare function oval(x: i32, y: i32, width: u32, height: u32): void;
+declare function oval(x: i32, y: i32, width: u32, height: u32): void;
 
 @external("env", "text")
-export declare function text(str: string, x: i32, y: i32): void;
+declare function text(str: string, x: i32, y: i32): void;
 
 @external("env", "blit")
-export declare function blit(
+declare function blit(
   sprite: usize,
   x: i32,
   y: i32,
@@ -35,7 +35,7 @@ export declare function blit(
 ): void;
 
 @external("env", "blitSub")
-export declare function blitSub(
+declare function blitSub(
   sprite: usize,
   x: i32,
   y: i32,
@@ -48,16 +48,16 @@ export declare function blitSub(
 ): void;
 
 @external("env", "line")
-export declare function line(x1: i32, y1: i32, x2: i32, y2: i32): void;
+declare function line(x1: i32, y1: i32, x2: i32, y2: i32): void;
 
 @external("env", "hline")
-export declare function hline(x: i32, y: i32, len: u32): void;
+declare function hline(x: i32, y: i32, len: u32): void;
 
 @external("env", "vline")
-export declare function vline(x: i32, y: i32, len: u32): void;
+declare function vline(x: i32, y: i32, len: u32): void;
 
 @external("env", "tone")
-export declare function tone(
+declare function tone(
   frequency: u32,
   duration: u32,
   volume: u32,
@@ -65,16 +65,16 @@ export declare function tone(
 ): void;
 
 @external("env", "diskr")
-export declare function diskr(dest: usize, size: u32): u32;
+declare function diskr(dest: usize, size: u32): u32;
 
 @external("env", "diskw")
-export declare function diskw(src: usize, size: u32): u32;
+declare function diskw(src: usize, size: u32): u32;
 
 @external("env", "trace")
-export declare function trace(str: string): void;
+declare function trace(str: string): void;
 
 @external("env", "tracef")
-export declare function tracef(fmt: string, ...args: number[]): void;
+declare function tracef(fmt: string, ...args: number[]): void;
 
 // Pixel set function
 function pset(x: i32, y: i32): void {
