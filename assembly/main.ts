@@ -77,32 +77,27 @@ const NOTE_F4: u32 = 349;
 const NOTE_G3: u32 = 196;
 
 // ---------------------------------------------------------------------------
-// Static Star Data (Pre-allocated arrays)
+// Static Star Data (Manual memory allocation in free region)
 // ---------------------------------------------------------------------------
-const starX = memory.data<f32>([
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-]);
+// WASM-4 free memory starts at 0x19a0 (after framebuffer at 0xa0-0x5f9f)
+const starX: usize = 0x19a0;  // 64 * 4 = 256 bytes
+const starY: usize = 0x1aa0;  // 64 * 4 = 256 bytes
+const starZ: usize = 0x1ba0;  // 64 * 4 = 256 bytes
+const bassNotes: usize = 0x1ca0;  // 4 * 4 = 16 bytes
+const arpNotes: usize = 0x1cb0;  // 4 * 4 = 16 bytes
 
-const starY = memory.data<f32>([
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-]);
+// Initialize audio note data
+function initAudioData(): void {
+  store<u32>(bassNotes + 0, NOTE_C2);
+  store<u32>(bassNotes + 4, NOTE_G1);
+  store<u32>(bassNotes + 8, NOTE_F2);
+  store<u32>(bassNotes + 12, NOTE_E2);
 
-const starZ = memory.data<f32>([
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-]);
-
-// Audio progression data (bass and arp notes)
-const bassNotes = memory.data<u32>([NOTE_C2, NOTE_G1, NOTE_F2, NOTE_E2]);
-const arpNotes = memory.data<u32>([NOTE_C4, NOTE_G3, NOTE_F4, NOTE_E4]);
+  store<u32>(arpNotes + 0, NOTE_C4);
+  store<u32>(arpNotes + 4, NOTE_G3);
+  store<u32>(arpNotes + 8, NOTE_F4);
+  store<u32>(arpNotes + 12, NOTE_E4);
+}
 
 // ---------------------------------------------------------------------------
 // Random Number Generator (Simple LCG)
@@ -145,6 +140,9 @@ export function start(): void {
   store<u32>(PALETTE + 4, 0x6C757D); // PALETTE[1] = Hematite (Far Stars)
   store<u32>(PALETTE + 8, 0x87CEEB); // PALETTE[2] = Celestite (Near Stars)
   store<u32>(PALETTE + 12, 0xFFFFFF); // PALETTE[3] = Moonstone (Scroller Text)
+
+  // Initialize audio data
+  initAudioData();
 
   // Reset global state
   frameCounter = 0;
