@@ -18,43 +18,8 @@ export const FRAMEBUFFER: usize = 0xa0;
 @external("env", "rect")
 declare function rect(x: i32, y: i32, width: u32, height: u32): void;
 
-@external("env", "oval")
-declare function oval(x: i32, y: i32, width: u32, height: u32): void;
-
 @external("env", "text")
 declare function text(str: string, x: i32, y: i32): void;
-
-@external("env", "blit")
-declare function blit(
-  sprite: usize,
-  x: i32,
-  y: i32,
-  width: u32,
-  height: u32,
-  flags: u32
-): void;
-
-@external("env", "blitSub")
-declare function blitSub(
-  sprite: usize,
-  x: i32,
-  y: i32,
-  width: u32,
-  height: u32,
-  srcX: u32,
-  srcY: u32,
-  srcStride: u32,
-  flags: u32
-): void;
-
-@external("env", "line")
-declare function line(x1: i32, y1: i32, x2: i32, y2: i32): void;
-
-@external("env", "hline")
-declare function hline(x: i32, y: i32, len: u32): void;
-
-@external("env", "vline")
-declare function vline(x: i32, y: i32, len: u32): void;
 
 @external("env", "tone")
 declare function tone(
@@ -64,17 +29,8 @@ declare function tone(
   flags: u32
 ): void;
 
-@external("env", "diskr")
-declare function diskr(dest: usize, size: u32): u32;
-
-@external("env", "diskw")
-declare function diskw(src: usize, size: u32): u32;
-
 @external("env", "trace")
 declare function trace(str: string): void;
-
-@external("env", "tracef")
-declare function tracef(fmt: string, ...args: number[]): void;
 
 // Pixel set function
 function pset(x: i32, y: i32): void {
@@ -101,7 +57,7 @@ function pset(x: i32, y: i32): void {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const STAR_COUNT: i32 = 150;
+const STAR_COUNT: i32 = 64;
 const MAX_DISTANCE: f32 = 200.0;
 const FAR_PLANE_DISTANCE: f32 = MAX_DISTANCE / 2.0;
 const SPEED: f32 = 2.0;
@@ -109,10 +65,8 @@ const SPEED: f32 = 2.0;
 // Audio constants (WASM-4 tone flags)
 const TONE_PULSE1: u32 = 0;
 const TONE_PULSE2: u32 = 1;
-const TONE_TRIANGLE: u32 = 2;
-const TONE_NOISE: u32 = 3;
 
-// Note frequencies (Hz) - simplified chromatic scale
+// Note frequencies (Hz)
 const NOTE_C2: u32 = 65;
 const NOTE_E2: u32 = 82;
 const NOTE_F2: u32 = 87;
@@ -123,19 +77,32 @@ const NOTE_F4: u32 = 349;
 const NOTE_G3: u32 = 196;
 
 // ---------------------------------------------------------------------------
-// Star Class
+// Static Star Data (Pre-allocated arrays)
 // ---------------------------------------------------------------------------
-class Star {
-  x: f32;
-  y: f32;
-  z: f32;
+const starX = memory.data<f32>([
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+]);
 
-  constructor(x: f32 = 0.0, y: f32 = 0.0, z: f32 = MAX_DISTANCE) {
-    this.x = x;
-    this.y = y;
-    this.z = z;
-  }
-}
+const starY = memory.data<f32>([
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+]);
+
+const starZ = memory.data<f32>([
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+]);
+
+// Audio progression data (bass and arp notes)
+const bassNotes = memory.data<u32>([NOTE_C2, NOTE_G1, NOTE_F2, NOTE_E2]);
+const arpNotes = memory.data<u32>([NOTE_C4, NOTE_G3, NOTE_F4, NOTE_E4]);
 
 // ---------------------------------------------------------------------------
 // Random Number Generator (Simple LCG)
@@ -154,85 +121,25 @@ function randomRange(min: f32, max: f32): f32 {
 // ---------------------------------------------------------------------------
 // Star Management
 // ---------------------------------------------------------------------------
-function resetStar(star: Star): void {
-  star.x = randomRange(-80.0, 80.0);
-  star.y = randomRange(-80.0, 80.0);
-  star.z = MAX_DISTANCE;
+function resetStar(idx: i32): void {
+  store<f32>(starX + (idx << 2), randomRange(-80.0, 80.0));
+  store<f32>(starY + (idx << 2), randomRange(-80.0, 80.0));
+  store<f32>(starZ + (idx << 2), MAX_DISTANCE);
 }
-
-// ---------------------------------------------------------------------------
-// Scroller Class
-// ---------------------------------------------------------------------------
-class Scroller {
-  message: string;
-  scrollPos: f32;
-  speed: f32;
-
-  constructor(message: string, speed: f32 = 30.0) {
-    this.message = message;
-    this.scrollPos = 0.0;
-    this.speed = speed;
-  }
-
-  update(deltaTime: f32): void {
-    this.scrollPos += this.speed * deltaTime;
-    const maxScroll = f32(this.message.length * 8);
-    if (this.scrollPos >= maxScroll) {
-      this.scrollPos = 0.0;
-    }
-  }
-
-  draw(y: i32): void {
-    const charWidth = 8;
-    const screenWidth = 160;
-    const messageWidth = this.message.length * charWidth;
-
-    // Calculate offset for scrolling
-    const offset = i32(this.scrollPos);
-    const x = screenWidth - offset;
-
-    // Draw the main text
-    text(this.message, x, y);
-
-    // Draw wrapped-around portion if necessary
-    if (x < -messageWidth + screenWidth) {
-      text(this.message, x + messageWidth, y);
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Audio Progression
-// ---------------------------------------------------------------------------
-class ChordNote {
-  bass: u32;
-  arp: u32;
-
-  constructor(bass: u32, arp: u32) {
-    this.bass = bass;
-    this.arp = arp;
-  }
-}
-
-const progression: ChordNote[] = [
-  new ChordNote(NOTE_C2, NOTE_C4), // Am equivalent
-  new ChordNote(NOTE_G1, NOTE_G3), // G
-  new ChordNote(NOTE_F2, NOTE_F4), // F
-  new ChordNote(NOTE_E2, NOTE_E4)  // E
-];
 
 // ---------------------------------------------------------------------------
 // Global State
 // ---------------------------------------------------------------------------
-let stars: Star[] = [];
-let scroller: Scroller | null = null;
 let frameCounter: u32 = 0;
 let lastBassAct: u32 = 0xFFFFFFFF;
+let initialized: bool = false;
 
 // ---------------------------------------------------------------------------
 // WASM-4 Lifecycle: start()
 // ---------------------------------------------------------------------------
 export function start(): void {
+  if (initialized) return;
+
   // Set Gemstone Palette
   store<u32>(PALETTE + 0, 0x000000); // PALETTE[0] = Obsidian (Background)
   store<u32>(PALETTE + 4, 0x6C757D); // PALETTE[1] = Hematite (Far Stars)
@@ -245,25 +152,27 @@ export function start(): void {
   lastBassAct = 0xFFFFFFFF;
 
   // Initialize stars
-  for (let i = 0; i < STAR_COUNT; i++) {
-    const star = new Star();
-    resetStar(star);
+  for (let i: i32 = 0; i < STAR_COUNT; i++) {
+    resetStar(i);
     // Distribute stars along z-axis for initial state
-    star.z = randomRange(1.0, MAX_DISTANCE);
-    stars.push(star);
+    const z = randomRange(1.0, MAX_DISTANCE);
+    store<f32>(starZ + (i << 2), z);
   }
 
-  // Initialize scroller
-  scroller = new Scroller(
-    "   PROJECT WARPCORE (P4)   ...   A3 STACK VALIDATION   ...   ASSEMBLYSCRIPT + WASM-4   ...   64K OR BUST   ...   ",
-    25.0
-  );
+  initialized = true;
 }
 
 // ---------------------------------------------------------------------------
 // WASM-4 Lifecycle: update()
 // ---------------------------------------------------------------------------
 export function update(): void {
+  // -------------------------------------------------------------------------
+  // 0. Lazy Initialization (ensure start() has been called)
+  // -------------------------------------------------------------------------
+  if (!initialized) {
+    start();
+  }
+
   // -------------------------------------------------------------------------
   // 1. Clear Screen to PALETTE[0] (Obsidian)
   // -------------------------------------------------------------------------
@@ -273,21 +182,28 @@ export function update(): void {
   // -------------------------------------------------------------------------
   // 2. Starfield Kernel (3D Projection)
   // -------------------------------------------------------------------------
-  for (let i = 0; i < stars.length; i++) {
-    const star = stars[i];
+  for (let i: i32 = 0; i < STAR_COUNT; i++) {
+    const offset = i << 2;
+    let x = load<f32>(starX + offset);
+    let y = load<f32>(starY + offset);
+    let z = load<f32>(starZ + offset);
 
     // Update position
-    star.z -= SPEED;
+    z -= SPEED;
 
     // Reset if too close
-    if (star.z < 1.0) {
-      resetStar(star);
+    if (z < 1.0) {
+      store<f32>(starX + offset, randomRange(-80.0, 80.0));
+      store<f32>(starY + offset, randomRange(-80.0, 80.0));
+      z = MAX_DISTANCE;
     }
 
+    store<f32>(starZ + offset, z);
+
     // 3D Projection
-    const invZ = 1.0 / star.z;
-    const screenX = star.x * invZ + 80.0;
-    const screenY = star.y * invZ + 80.0;
+    const invZ = 1.0 / z;
+    const screenX = x * invZ + 80.0;
+    const screenY = y * invZ + 80.0;
 
     // Bounds check (don't draw if offscreen)
     if (screenX < 0.0 || screenX >= 160.0 || screenY < 0.0 || screenY >= 160.0) {
@@ -295,7 +211,7 @@ export function update(): void {
     }
 
     // Color selection based on depth
-    const colorIndex: u16 = star.z > FAR_PLANE_DISTANCE ? 0x0002 : 0x0003;
+    const colorIndex: u16 = z > FAR_PLANE_DISTANCE ? 0x0002 : 0x0003;
     store<u16>(DRAW_COLORS, colorIndex);
 
     // Draw pixel (cast f32 to i32)
@@ -303,11 +219,10 @@ export function update(): void {
   }
 
   // -------------------------------------------------------------------------
-  // 3. Scroller Update & Draw
+  // 3. Text Display
   // -------------------------------------------------------------------------
-  scroller!.update(1.0 / 60.0);
   store<u16>(DRAW_COLORS, 0x0004); // PALETTE[3] = Moonstone
-  scroller!.draw(150);
+  text("WARPCORE P4", 40, 150);
 
   // -------------------------------------------------------------------------
   // 4. Audio Tracker (64-second, 4-act sequence)
@@ -316,8 +231,9 @@ export function update(): void {
 
   // Bass note - play once per act change (every 16 seconds)
   if (actIndex != lastBassAct) {
+    const bassFreq = load<u32>(bassNotes + (actIndex << 2));
     tone(
-      progression[actIndex].bass,
+      bassFreq,
       60 * 16,      // Duration: 16 seconds
       40,           // Volume
       TONE_PULSE2   // Channel
@@ -327,8 +243,9 @@ export function update(): void {
 
   // Arp note - play every 8 frames (~133ms at 60fps)
   if ((frameCounter % 8) == 0) {
+    const arpFreq = load<u32>(arpNotes + (actIndex << 2));
     tone(
-      progression[actIndex].arp,
+      arpFreq,
       8,            // Duration: 8 frames
       60,           // Volume
       TONE_PULSE1   // Channel
