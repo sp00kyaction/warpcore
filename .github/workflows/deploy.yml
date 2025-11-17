@@ -1,0 +1,68 @@
+# This workflow builds and deploys the WASM-4 demo to GitHub Pages
+
+name: Build and Deploy WASM-4 Demo
+
+# 1. Trigger: Run on every push to the 'main' branch
+on:
+  push:
+    branches: ["main"]
+
+# 2. Permissions: Grant the workflow permissions to write to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 3. Jobs: Define the build-and-deploy process
+jobs:
+  build:
+    name: Build WASM-4 Cartridge
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Check out the repository code
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Node.js (required for npm)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Step 3: Install dependencies (w4 CLI and AssemblyScript)
+      - name: Install dependencies
+        run: |
+          npm install -g w4
+          npm install -g assemblyscript
+          npm install
+
+      # Step 4: Build the .wasm file (using your package.json script)
+      - name: Build WASM cartridge
+        run: npm run build
+
+      # Step 5: Bundle the .wasm into a standalone HTML file
+      # This is the key step for creating a "testable" artifact.
+      # It creates a directory "public" containing "index.html".
+      - name: Bundle for Web
+        run: |
+          mkdir public
+          w4 bundle cart/cart.wasm --html public/index.html
+
+      # Step 6: Upload the "public" directory as a GitHub Pages artifact
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build # This job only runs if the "build" job succeeds
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }} # This will output the final URL
+    steps:
+      # Step 7: Deploy the artifact to GitHub Pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
