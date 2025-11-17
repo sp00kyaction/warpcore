@@ -101,7 +101,7 @@ function pset(x: i32, y: i32): void {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const STAR_COUNT: i32 = 150;
+const STAR_COUNT: i32 = 100;
 const MAX_DISTANCE: f32 = 200.0;
 const FAR_PLANE_DISTANCE: f32 = MAX_DISTANCE / 2.0;
 const SPEED: f32 = 2.0;
@@ -253,7 +253,7 @@ export function start(): void {
 
   // Initialize scroller
   scroller = new Scroller(
-    "   PROJECT WARPCORE (P4)   ...   A3 STACK VALIDATION   ...   ASSEMBLYSCRIPT + WASM-4   ...   64K OR BUST   ...   ",
+    "PROJECT WARPCORE (P4) - ASSEMBLYSCRIPT + WASM-4",
     25.0
   );
 
