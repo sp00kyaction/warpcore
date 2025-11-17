@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "assemblyscript": "^0.27.0",
-    "w4": "latest"
+    "wasm4": "^2.7.1"
   },
   "type": "module"
 }
