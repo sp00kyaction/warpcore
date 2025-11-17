@@ -16,13 +16,13 @@ export const FRAMEBUFFER: usize = 0xa0;
 // WASM-4 API Imports
 // ---------------------------------------------------------------------------
 @external("env", "rect")
-export declare function rect(x: i32, y: i32, width: u32, height: u32): void;
+declare function rect(x: i32, y: i32, width: u32, height: u32): void;
 
 @external("env", "text")
-export declare function text(str: string, x: i32, y: i32): void;
+declare function text(str: string, x: i32, y: i32): void;
 
 @external("env", "tone")
-export declare function tone(
+declare function tone(
   frequency: u32,
   duration: u32,
   volume: u32,
@@ -30,7 +30,7 @@ export declare function tone(
 ): void;
 
 @external("env", "trace")
-export declare function trace(str: string): void;
+declare function trace(str: string): void;
 
 // Pixel set function
 function pset(x: i32, y: i32): void {
