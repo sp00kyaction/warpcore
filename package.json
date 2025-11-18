@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Project Warpcore (P4) - The Gemstone Kernels",
   "scripts": {
-    "build": "mkdir -p cart && npx asc assembly/main.ts --outFile cart/cart.wasm --runtime stub --use abort=assembly/main/abort --optimize",
+    "build": "mkdir -p cart && npx asc assembly/main.ts --outFile cart/cart.wasm --runtime stub --optimize --importMemory --initialMemory 1 --maximumMemory 1 --noAssert --memoryBase 0",
     "bundle": "mkdir -p public && npx w4 bundle cart/cart.wasm --html public/index.html",
     "run": "npm run build && npx w4 run cart/cart.wasm",
     "watch": "npx w4 watch --onchange 'npm run build'"
