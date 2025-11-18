@@ -1,17 +1,17 @@
 // ===========================================================================
 // Project Warpcore - A 3D Perspective Starfield
-// Rebuilt from first principles for WASM-4 + AssemblyScript compatibility
+// Rebuilt for WASM-4 with zero runtime dependencies
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
-// WASM-4 Memory-Mapped I/O (these addresses are provided by WASM-4)
+// WASM-4 Memory-Mapped I/O
 // ---------------------------------------------------------------------------
 const PALETTE: usize = 0x04;
 const DRAW_COLORS: usize = 0x14;
 const FRAMEBUFFER: usize = 0xa0;
 
 // ---------------------------------------------------------------------------
-// WASM-4 API Functions (imported from WASM-4 runtime)
+// WASM-4 API Functions
 // ---------------------------------------------------------------------------
 @external("env", "rect")
 declare function rect(x: i32, y: i32, width: u32, height: u32): void;
@@ -45,15 +45,19 @@ const NOTE_F4: u32 = 349;
 const NOTE_G3: u32 = 196;
 
 // ---------------------------------------------------------------------------
-// Star Data (using proper AssemblyScript StaticArrays)
+// Star Data Storage (using WASM-4 free memory region)
+// WASM-4 memory map:
+//   0xa0-0x19a0: Framebuffer (6400 bytes)
+//   0x19a0+: Free memory for custom data
 // ---------------------------------------------------------------------------
-const starX = new StaticArray<f32>(STAR_COUNT);
-const starY = new StaticArray<f32>(STAR_COUNT);
-const starZ = new StaticArray<f32>(STAR_COUNT);
+const STAR_DATA_BASE: usize = 0x19a0;
+const starX: usize = STAR_DATA_BASE;           // 64 * 4 = 256 bytes
+const starY: usize = STAR_DATA_BASE + 256;     // 64 * 4 = 256 bytes
+const starZ: usize = STAR_DATA_BASE + 512;     // 64 * 4 = 256 bytes
 
-// Audio note arrays
-const bassNotes = new StaticArray<u32>(4);
-const arpNotes = new StaticArray<u32>(4);
+// Audio note data
+const bassNotes: usize = STAR_DATA_BASE + 768;  // 4 * 4 = 16 bytes
+const arpNotes: usize = STAR_DATA_BASE + 784;   // 4 * 4 = 16 bytes
 
 // ---------------------------------------------------------------------------
 // Random Number Generator
@@ -73,33 +77,19 @@ function randomRange(min: f32, max: f32): f32 {
 // Pixel Drawing Function
 // ---------------------------------------------------------------------------
 function pset(x: i32, y: i32): void {
-  // Bounds check
   if (x < 0 || x >= 160 || y < 0 || y >= 160) return;
 
-  // Get current draw colors
   const drawColors = load<u16>(DRAW_COLORS);
   const colorIndex = u8((drawColors & 0x0f) - 1);
-
   if (colorIndex > 3) return;
 
-  // Calculate framebuffer position
   const idx = (y * 160 + x) >> 2;
   const shift = u8((x & 0x3) << 1);
   const mask = u8(0x3 << shift);
 
-  // Read-modify-write
   const fbAddr = FRAMEBUFFER + idx;
   const pixel = load<u8>(fbAddr);
   store<u8>(fbAddr, (pixel & ~mask) | (colorIndex << shift));
-}
-
-// ---------------------------------------------------------------------------
-// Star Management
-// ---------------------------------------------------------------------------
-function resetStar(idx: i32): void {
-  starX[idx] = randomRange(-80.0, 80.0);
-  starY[idx] = randomRange(-80.0, 80.0);
-  starZ[idx] = MAX_DISTANCE;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,32 +103,33 @@ let initialized: bool = false;
 // WASM-4 Lifecycle: start()
 // ---------------------------------------------------------------------------
 export function start(): void {
-  // Set Gemstone Palette
-  store<u32>(PALETTE + 0, 0x000000);  // PALETTE[0] = Obsidian (Background)
-  store<u32>(PALETTE + 4, 0x6C757D);  // PALETTE[1] = Hematite (Far Stars)
-  store<u32>(PALETTE + 8, 0x87CEEB);  // PALETTE[2] = Celestite (Near Stars)
-  store<u32>(PALETTE + 12, 0xFFFFFF); // PALETTE[3] = Moonstone (Text)
+  // Set palette
+  store<u32>(PALETTE + 0, 0x000000);   // Black background
+  store<u32>(PALETTE + 4, 0x6C757D);   // Gray (far stars)
+  store<u32>(PALETTE + 8, 0x87CEEB);   // Blue (near stars)
+  store<u32>(PALETTE + 12, 0xFFFFFF);  // White (text)
 
-  // Initialize audio note data
-  bassNotes[0] = NOTE_C2;
-  bassNotes[1] = NOTE_G1;
-  bassNotes[2] = NOTE_F2;
-  bassNotes[3] = NOTE_E2;
+  // Initialize audio notes
+  store<u32>(bassNotes + 0, NOTE_C2);
+  store<u32>(bassNotes + 4, NOTE_G1);
+  store<u32>(bassNotes + 8, NOTE_F2);
+  store<u32>(bassNotes + 12, NOTE_E2);
 
-  arpNotes[0] = NOTE_C4;
-  arpNotes[1] = NOTE_G3;
-  arpNotes[2] = NOTE_F4;
-  arpNotes[3] = NOTE_E4;
+  store<u32>(arpNotes + 0, NOTE_C4);
+  store<u32>(arpNotes + 4, NOTE_G3);
+  store<u32>(arpNotes + 8, NOTE_F4);
+  store<u32>(arpNotes + 12, NOTE_E4);
 
-  // Reset global state
+  // Reset state
   frameCounter = 0;
   lastBassAct = 0xFFFFFFFF;
 
-  // Initialize stars with random z distribution
+  // Initialize stars with random distribution
   for (let i: i32 = 0; i < STAR_COUNT; i++) {
-    starX[i] = randomRange(-80.0, 80.0);
-    starY[i] = randomRange(-80.0, 80.0);
-    starZ[i] = randomRange(1.0, MAX_DISTANCE);
+    const offset = i << 2;
+    store<f32>(starX + offset, randomRange(-80.0, 80.0));
+    store<f32>(starY + offset, randomRange(-80.0, 80.0));
+    store<f32>(starZ + offset, randomRange(1.0, MAX_DISTANCE));
   }
 
   initialized = true;
@@ -148,20 +139,22 @@ export function start(): void {
 // WASM-4 Lifecycle: update()
 // ---------------------------------------------------------------------------
 export function update(): void {
-  // Ensure initialization
+  // Lazy initialization
   if (!initialized) {
     start();
   }
 
-  // Clear screen to black (PALETTE[0])
+  // Clear screen to black
   store<u16>(DRAW_COLORS, 0x0001);
   rect(0, 0, 160, 160);
 
   // Draw starfield
   for (let i: i32 = 0; i < STAR_COUNT; i++) {
-    let x = starX[i];
-    let y = starY[i];
-    let z = starZ[i];
+    const offset = i << 2;
+
+    let x = load<f32>(starX + offset);
+    let y = load<f32>(starY + offset);
+    let z = load<f32>(starZ + offset);
 
     // Move star forward
     z -= SPEED;
@@ -171,11 +164,11 @@ export function update(): void {
       x = randomRange(-80.0, 80.0);
       y = randomRange(-80.0, 80.0);
       z = MAX_DISTANCE;
-      starX[i] = x;
-      starY[i] = y;
+      store<f32>(starX + offset, x);
+      store<f32>(starY + offset, y);
     }
 
-    starZ[i] = z;
+    store<f32>(starZ + offset, z);
 
     // 3D perspective projection
     const invZ = 1.0 / z;
@@ -187,7 +180,7 @@ export function update(): void {
       continue;
     }
 
-    // Color based on depth (far = gray, near = blue)
+    // Color based on depth
     const colorIndex: u16 = z > FAR_PLANE_DISTANCE ? 0x0002 : 0x0003;
     store<u16>(DRAW_COLORS, colorIndex);
 
@@ -196,22 +189,22 @@ export function update(): void {
   }
 
   // Draw text
-  store<u16>(DRAW_COLORS, 0x0004); // White text
+  store<u16>(DRAW_COLORS, 0x0004);
   text("WARPCORE P4", 40, 150);
 
-  // Audio tracker (4-act sequence, 16 seconds each)
+  // Audio tracker
   const actIndex = (frameCounter / (60 * 16)) % 4;
 
   // Bass note - play once per act change
   if (actIndex != lastBassAct) {
-    const bassFreq = bassNotes[actIndex];
+    const bassFreq = load<u32>(bassNotes + (actIndex << 2));
     tone(bassFreq, 60 * 16, 40, TONE_PULSE2);
     lastBassAct = actIndex;
   }
 
   // Arp note - play every 8 frames
   if ((frameCounter % 8) == 0) {
-    const arpFreq = arpNotes[actIndex];
+    const arpFreq = load<u32>(arpNotes + (actIndex << 2));
     tone(arpFreq, 8, 60, TONE_PULSE1);
   }
 
