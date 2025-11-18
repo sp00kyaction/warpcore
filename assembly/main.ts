@@ -25,6 +25,8 @@ declare function tone(frequency: u32, duration: u32, volume: u32, flags: u32): v
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
+const STAR_COUNT: i32 = 80;
+const BG_STAR_COUNT: i32 = 40;
 const STAR_COUNT: i32 = 96;
 const MAX_DISTANCE: f32 = 200.0;
 const NEAR_PLANE: f32 = MAX_DISTANCE / 3.0;
@@ -58,6 +60,46 @@ const NOTE_C5: u32 = 523;
 //   0xa0-0x19a0: Framebuffer (6400 bytes)
 //   0x19a0+: Free memory for custom data
 // ---------------------------------------------------------------------------
+const starX = memory.data<f32>([
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+]);
+
+const starY = memory.data<f32>([
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+]);
+
+const starZ = memory.data<f32>([
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+]);
+
+// Background stars (static positions)
+const bgStarX = memory.data<f32>([
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0
+]);
+
+const bgStarY = memory.data<f32>([
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0
+]);
+
+// Audio progression data (bass and arp notes)
+const bassNotes = memory.data<u32>([NOTE_C2, NOTE_G1, NOTE_F2, NOTE_E2]);
+const arpNotes = memory.data<u32>([NOTE_C4, NOTE_G3, NOTE_F4, NOTE_E4]);
 const STAR_DATA_BASE: usize = 0x19a0;
 const starX: usize = STAR_DATA_BASE;           // 96 * 4 = 384 bytes
 const starY: usize = STAR_DATA_BASE + 384;     // 96 * 4 = 384 bytes
@@ -84,6 +126,10 @@ function randomRange(min: f32, max: f32): f32 {
 // ---------------------------------------------------------------------------
 // Pixel Drawing Function
 // ---------------------------------------------------------------------------
+function resetStar(idx: i32): void {
+  store<f32>(starX + (idx << 2), randomRange(-250.0, 250.0));
+  store<f32>(starY + (idx << 2), randomRange(-250.0, 250.0));
+  store<f32>(starZ + (idx << 2), MAX_DISTANCE);
 function pset(x: i32, y: i32): void {
   if (x < 0 || x >= 160 || y < 0 || y >= 160) return;
 
@@ -111,6 +157,15 @@ let initialized: bool = false;
 // WASM-4 Lifecycle: start()
 // ---------------------------------------------------------------------------
 export function start(): void {
+  if (initialized) return;
+
+  // Set Gemstone Palette
+  store<u32>(PALETTE + 0, 0x000000); // PALETTE[0] = Obsidian (Background)
+  store<u32>(PALETTE + 4, 0x6C757D); // PALETTE[1] = Hematite (Far Stars)
+  store<u32>(PALETTE + 8, 0x87CEEB); // PALETTE[2] = Celestite (Near Stars)
+  store<u32>(PALETTE + 12, 0xFFFFFF); // PALETTE[3] = Moonstone (Scroller Text)
+
+  // Initialize moving stars
   // Set palette
   store<u32>(PALETTE + 0, 0x000000);   // Black background
   store<u32>(PALETTE + 4, 0x4A5568);   // Dark gray (distant stars)
@@ -140,6 +195,14 @@ export function start(): void {
     store<f32>(starZ + offset, randomRange(1.0, MAX_DISTANCE));
   }
 
+  // Initialize background stars (static, evenly distributed)
+  for (let i: i32 = 0; i < BG_STAR_COUNT; i++) {
+    const x = randomRange(0.0, 160.0);
+    const y = randomRange(0.0, 160.0);
+    store<f32>(bgStarX + (i << 2), x);
+    store<f32>(bgStarY + (i << 2), y);
+  }
+
   initialized = true;
 }
 
@@ -156,6 +219,20 @@ export function update(): void {
   store<u16>(DRAW_COLORS, 0x0001);
   rect(0, 0, 160, 160);
 
+  // -------------------------------------------------------------------------
+  // 2. Background Stars (Static)
+  // -------------------------------------------------------------------------
+  store<u16>(DRAW_COLORS, 0x0002); // PALETTE[1] = Hematite (dim)
+  for (let i: i32 = 0; i < BG_STAR_COUNT; i++) {
+    const offset = i << 2;
+    const x = i32(load<f32>(bgStarX + offset));
+    const y = i32(load<f32>(bgStarY + offset));
+    pset(x, y);
+  }
+
+  // -------------------------------------------------------------------------
+  // 3. Starfield Kernel (3D Projection)
+  // -------------------------------------------------------------------------
   // Draw starfield
   for (let i: i32 = 0; i < STAR_COUNT; i++) {
     const offset = i << 2;
@@ -169,6 +246,8 @@ export function update(): void {
 
     // Reset if too close
     if (z < 1.0) {
+      store<f32>(starX + offset, randomRange(-250.0, 250.0));
+      store<f32>(starY + offset, randomRange(-250.0, 250.0));
       x = randomRange(-80.0, 80.0);
       y = randomRange(-80.0, 80.0);
       z = MAX_DISTANCE;
@@ -212,6 +291,16 @@ export function update(): void {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // 4. Text Display
+  // -------------------------------------------------------------------------
+  store<u16>(DRAW_COLORS, 0x0004); // PALETTE[3] = Moonstone
+  text("WARPCORE P4", 40, 150);
+
+  // -------------------------------------------------------------------------
+  // 5. Audio Tracker (64-second, 4-act sequence)
+  // -------------------------------------------------------------------------
+  const actIndex = (frameCounter / (60 * 16)) % 4;
   // Draw text
   store<u16>(DRAW_COLORS, 0x0004);
   text("WARPCORE P4", 40, 150);
