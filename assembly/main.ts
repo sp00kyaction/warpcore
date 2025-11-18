@@ -57,7 +57,8 @@ function pset(x: i32, y: i32): void {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const STAR_COUNT: i32 = 64;
+const STAR_COUNT: i32 = 80;
+const BG_STAR_COUNT: i32 = 40;
 const MAX_DISTANCE: f32 = 200.0;
 const FAR_PLANE_DISTANCE: f32 = MAX_DISTANCE / 2.0;
 const SPEED: f32 = 2.0;
@@ -83,10 +84,12 @@ const starX = memory.data<f32>([
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 ]);
 
 const starY = memory.data<f32>([
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -97,7 +100,21 @@ const starZ = memory.data<f32>([
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+]);
+
+// Background stars (static positions)
+const bgStarX = memory.data<f32>([
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0
+]);
+
+const bgStarY = memory.data<f32>([
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0
 ]);
 
 // Audio progression data (bass and arp notes)
@@ -122,8 +139,8 @@ function randomRange(min: f32, max: f32): f32 {
 // Star Management
 // ---------------------------------------------------------------------------
 function resetStar(idx: i32): void {
-  store<f32>(starX + (idx << 2), randomRange(-80.0, 80.0));
-  store<f32>(starY + (idx << 2), randomRange(-80.0, 80.0));
+  store<f32>(starX + (idx << 2), randomRange(-250.0, 250.0));
+  store<f32>(starY + (idx << 2), randomRange(-250.0, 250.0));
   store<f32>(starZ + (idx << 2), MAX_DISTANCE);
 }
 
@@ -146,12 +163,20 @@ export function start(): void {
   store<u32>(PALETTE + 8, 0x87CEEB); // PALETTE[2] = Celestite (Near Stars)
   store<u32>(PALETTE + 12, 0xFFFFFF); // PALETTE[3] = Moonstone (Scroller Text)
 
-  // Initialize stars
+  // Initialize moving stars
   for (let i: i32 = 0; i < STAR_COUNT; i++) {
     resetStar(i);
     // Distribute stars along z-axis for initial state
     const z = randomRange(1.0, MAX_DISTANCE);
     store<f32>(starZ + (i << 2), z);
+  }
+
+  // Initialize background stars (static, evenly distributed)
+  for (let i: i32 = 0; i < BG_STAR_COUNT; i++) {
+    const x = randomRange(0.0, 160.0);
+    const y = randomRange(0.0, 160.0);
+    store<f32>(bgStarX + (i << 2), x);
+    store<f32>(bgStarY + (i << 2), y);
   }
 
   initialized = true;
@@ -175,7 +200,18 @@ export function update(): void {
   rect(0, 0, 160, 160);
 
   // -------------------------------------------------------------------------
-  // 2. Starfield Kernel (3D Projection)
+  // 2. Background Stars (Static)
+  // -------------------------------------------------------------------------
+  store<u16>(DRAW_COLORS, 0x0002); // PALETTE[1] = Hematite (dim)
+  for (let i: i32 = 0; i < BG_STAR_COUNT; i++) {
+    const offset = i << 2;
+    const x = i32(load<f32>(bgStarX + offset));
+    const y = i32(load<f32>(bgStarY + offset));
+    pset(x, y);
+  }
+
+  // -------------------------------------------------------------------------
+  // 3. Starfield Kernel (3D Projection)
   // -------------------------------------------------------------------------
   for (let i: i32 = 0; i < STAR_COUNT; i++) {
     const offset = i << 2;
@@ -188,8 +224,8 @@ export function update(): void {
 
     // Reset if too close
     if (z < 1.0) {
-      store<f32>(starX + offset, randomRange(-80.0, 80.0));
-      store<f32>(starY + offset, randomRange(-80.0, 80.0));
+      store<f32>(starX + offset, randomRange(-250.0, 250.0));
+      store<f32>(starY + offset, randomRange(-250.0, 250.0));
       z = MAX_DISTANCE;
     }
 
@@ -214,13 +250,13 @@ export function update(): void {
   }
 
   // -------------------------------------------------------------------------
-  // 3. Text Display
+  // 4. Text Display
   // -------------------------------------------------------------------------
   store<u16>(DRAW_COLORS, 0x0004); // PALETTE[3] = Moonstone
   text("WARPCORE P4", 40, 150);
 
   // -------------------------------------------------------------------------
-  // 4. Audio Tracker (64-second, 4-act sequence)
+  // 5. Audio Tracker (64-second, 4-act sequence)
   // -------------------------------------------------------------------------
   const actIndex = (frameCounter / (60 * 16)) % 4;
 
