@@ -25,24 +25,32 @@ declare function tone(frequency: u32, duration: u32, volume: u32, flags: u32): v
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const STAR_COUNT: i32 = 64;
+const STAR_COUNT: i32 = 96;
 const MAX_DISTANCE: f32 = 200.0;
-const FAR_PLANE_DISTANCE: f32 = MAX_DISTANCE / 2.0;
-const SPEED: f32 = 2.0;
+const NEAR_PLANE: f32 = MAX_DISTANCE / 3.0;
+const FAR_PLANE: f32 = MAX_DISTANCE * 2.0 / 3.0;
+const SPEED: f32 = 2.5;
 
 // Audio constants
 const TONE_PULSE1: u32 = 0;
 const TONE_PULSE2: u32 = 1;
+const TONE_TRIANGLE: u32 = 2;
+const TONE_NOISE: u32 = 3;
 
-// Note frequencies (Hz)
-const NOTE_C2: u32 = 65;
-const NOTE_E2: u32 = 82;
-const NOTE_F2: u32 = 87;
-const NOTE_G1: u32 = 49;
+// Note frequencies (Hz) - More musical scale
+const NOTE_C3: u32 = 131;
+const NOTE_D3: u32 = 147;
+const NOTE_E3: u32 = 165;
+const NOTE_F3: u32 = 175;
+const NOTE_G3: u32 = 196;
+const NOTE_A3: u32 = 220;
 const NOTE_C4: u32 = 262;
+const NOTE_D4: u32 = 294;
 const NOTE_E4: u32 = 330;
 const NOTE_F4: u32 = 349;
-const NOTE_G3: u32 = 196;
+const NOTE_G4: u32 = 392;
+const NOTE_A4: u32 = 440;
+const NOTE_C5: u32 = 523;
 
 // ---------------------------------------------------------------------------
 // Star Data Storage (using WASM-4 free memory region)
@@ -51,13 +59,13 @@ const NOTE_G3: u32 = 196;
 //   0x19a0+: Free memory for custom data
 // ---------------------------------------------------------------------------
 const STAR_DATA_BASE: usize = 0x19a0;
-const starX: usize = STAR_DATA_BASE;           // 64 * 4 = 256 bytes
-const starY: usize = STAR_DATA_BASE + 256;     // 64 * 4 = 256 bytes
-const starZ: usize = STAR_DATA_BASE + 512;     // 64 * 4 = 256 bytes
+const starX: usize = STAR_DATA_BASE;           // 96 * 4 = 384 bytes
+const starY: usize = STAR_DATA_BASE + 384;     // 96 * 4 = 384 bytes
+const starZ: usize = STAR_DATA_BASE + 768;     // 96 * 4 = 384 bytes
 
 // Audio note data
-const bassNotes: usize = STAR_DATA_BASE + 768;  // 4 * 4 = 16 bytes
-const arpNotes: usize = STAR_DATA_BASE + 784;   // 4 * 4 = 16 bytes
+const bassNotes: usize = STAR_DATA_BASE + 1152;  // 4 * 4 = 16 bytes
+const arpNotes: usize = STAR_DATA_BASE + 1168;   // 4 * 4 = 16 bytes
 
 // ---------------------------------------------------------------------------
 // Random Number Generator
@@ -105,20 +113,20 @@ let initialized: bool = false;
 export function start(): void {
   // Set palette
   store<u32>(PALETTE + 0, 0x000000);   // Black background
-  store<u32>(PALETTE + 4, 0x6C757D);   // Gray (far stars)
-  store<u32>(PALETTE + 8, 0x87CEEB);   // Blue (near stars)
-  store<u32>(PALETTE + 12, 0xFFFFFF);  // White (text)
+  store<u32>(PALETTE + 4, 0x4A5568);   // Dark gray (distant stars)
+  store<u32>(PALETTE + 8, 0xE0E0E0);   // Light gray (medium stars)
+  store<u32>(PALETTE + 12, 0xFFFFFF);  // White (close stars & text)
 
-  // Initialize audio notes
-  store<u32>(bassNotes + 0, NOTE_C2);
-  store<u32>(bassNotes + 4, NOTE_G1);
-  store<u32>(bassNotes + 8, NOTE_F2);
-  store<u32>(bassNotes + 12, NOTE_E2);
+  // Initialize audio notes - C minor progression
+  store<u32>(bassNotes + 0, NOTE_C3);
+  store<u32>(bassNotes + 4, NOTE_G3);
+  store<u32>(bassNotes + 8, NOTE_F3);
+  store<u32>(bassNotes + 12, NOTE_D3);
 
-  store<u32>(arpNotes + 0, NOTE_C4);
-  store<u32>(arpNotes + 4, NOTE_G3);
-  store<u32>(arpNotes + 8, NOTE_F4);
-  store<u32>(arpNotes + 12, NOTE_E4);
+  store<u32>(arpNotes + 0, NOTE_C5);
+  store<u32>(arpNotes + 4, NOTE_E4);
+  store<u32>(arpNotes + 8, NOTE_G4);
+  store<u32>(arpNotes + 12, NOTE_A4);
 
   // Reset state
   frameCounter = 0;
@@ -175,37 +183,62 @@ export function update(): void {
     const screenX = x * invZ + 80.0;
     const screenY = y * invZ + 80.0;
 
-    // Bounds check
-    if (screenX < 0.0 || screenX >= 160.0 || screenY < 0.0 || screenY >= 160.0) {
+    // Bounds check with margin for larger stars
+    if (screenX < -2.0 || screenX >= 162.0 || screenY < -2.0 || screenY >= 162.0) {
       continue;
     }
 
-    // Color based on depth
-    const colorIndex: u16 = z > FAR_PLANE_DISTANCE ? 0x0002 : 0x0003;
-    store<u16>(DRAW_COLORS, colorIndex);
+    const sx = i32(screenX);
+    const sy = i32(screenY);
 
-    // Draw pixel
-    pset(i32(screenX), i32(screenY));
+    // Three-tier color and size based on depth
+    if (z < NEAR_PLANE) {
+      // Close stars - white, larger (2x2)
+      store<u16>(DRAW_COLORS, 0x0004);
+      pset(sx, sy);
+      pset(sx + 1, sy);
+      pset(sx, sy + 1);
+      pset(sx + 1, sy + 1);
+    } else if (z < FAR_PLANE) {
+      // Medium stars - light gray, medium size (cross pattern)
+      store<u16>(DRAW_COLORS, 0x0003);
+      pset(sx, sy);
+      pset(sx + 1, sy);
+      pset(sx, sy + 1);
+    } else {
+      // Far stars - dark gray, single pixel
+      store<u16>(DRAW_COLORS, 0x0002);
+      pset(sx, sy);
+    }
   }
 
   // Draw text
   store<u16>(DRAW_COLORS, 0x0004);
   text("WARPCORE P4", 40, 150);
 
-  // Audio tracker
-  const actIndex = (frameCounter / (60 * 16)) % 4;
+  // Audio tracker - faster progression
+  const actIndex = (frameCounter / (60 * 4)) % 4;
 
-  // Bass note - play once per act change
+  // Bass note - play once per act change with triangle wave
   if (actIndex != lastBassAct) {
     const bassFreq = load<u32>(bassNotes + (actIndex << 2));
-    tone(bassFreq, 60 * 16, 40, TONE_PULSE2);
+    tone(bassFreq, 60 * 4, 50, TONE_TRIANGLE);
     lastBassAct = actIndex;
   }
 
-  // Arp note - play every 8 frames
-  if ((frameCounter % 8) == 0) {
+  // Melody - varied rhythm pattern
+  const beatPos = frameCounter % 32;
+  if (beatPos == 0 || beatPos == 8 || beatPos == 12 || beatPos == 20) {
     const arpFreq = load<u32>(arpNotes + (actIndex << 2));
-    tone(arpFreq, 8, 60, TONE_PULSE1);
+    const duration = (beatPos == 12) ? 12 : 6;
+    const volume = (beatPos == 0) ? 80 : 60;
+    tone(arpFreq, duration, volume, TONE_PULSE1);
+  }
+
+  // Ambient pad on beat 16
+  if (beatPos == 16) {
+    const bassFreq = load<u32>(bassNotes + (actIndex << 2));
+    tone(bassFreq * 2, 20, 30, TONE_PULSE2);
   }
 
   frameCounter++;
